@@ -1,0 +1,413 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Registro y Aprobación de Objetivos</title>
+
+    <!-- jQuery -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
+    
+    <!-- Tabulator CSS y JS - Versión actualizada -->
+    <script src="https://unpkg.com/tabulator-tables@5.4.4/dist/js/tabulator.min.js"></script>
+    <link href="https://unpkg.com/tabulator-tables@5.4.4/dist/css/tabulator.min.css" rel="stylesheet">
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/select2/4.0.13/css/select2.min.css" rel="stylesheet" />
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/select2/4.0.13/js/select2.min.js"></script>
+
+    <style>
+        .tabulator {
+            border-radius: 8px;
+            border: 1px solid #E2E8F0;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+            font-family: 'Arial', sans-serif;
+            width: 100%;
+        }
+
+        .tabulator-cell {
+            padding: 10px;
+            font-size: 0.8rem;
+            color: #2D3748;
+        }
+
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 50;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.4);
+            transition: opacity 0.3s ease;
+        }
+
+        .modal.show {
+            display: block;
+            opacity: 1;
+        }
+
+        .modal-content {
+            background-color: #fff;
+            margin: 10% auto;
+            padding: 15px;
+            border: 1px solid #888;
+            width: 50%;
+            max-width: 90%;  /* Ajuste para pantallas móviles */
+            border-radius: 12px;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+        }
+
+        .close {
+            color: #aaa;
+            float: right;
+            font-size: 28px;
+            font-weight: bold;
+            cursor: pointer;
+        }
+
+        #guardarCambiosBtn {
+            background-color: #3182CE;
+            color: white;
+            font-weight: bold;
+            transition: background-color 0.3s ease;
+            border-radius: 8px;
+            padding: 10px 20px;
+        }
+
+        #guardarCambiosBtn:hover {
+            background-color: #2C5282;
+        }
+
+        #loader, #spinner {
+            display: none;
+            text-align: center;
+            font-size: 18px;
+            color: #4299E1;
+            animation: rotate 1s linear infinite;
+        }
+
+        /* Colores de etiquetas para las columnas "Aprobado" y "Status" */
+        .label {
+            display: inline-block;
+            padding: 3px 8px;
+            border-radius: 15px;
+            font-size: 0.85rem;
+            color: white;
+            font-weight: bold;
+        }
+
+        .label.blue {
+            background-color: #4299E1;  /* Azul */
+        }
+
+        .label.orange {
+            background-color: #fd7e14;  /* Naranja */
+        }
+
+        .label.purple {
+            background-color: #6f42c1;  /* Morado */
+        }
+
+        .label.yellow {
+            background-color: #ECC94B;  /* Amarillo */
+        }
+
+        .label.green {
+            background-color: #48BB78;  /* Verde */
+        }
+
+        .label.red {
+            background-color: #F56565;  /* Rojo */
+        }
+
+        /* Indicadores visuales para mobile responsiveness */
+        @media (max-width: 768px) {
+            .tabulator-cell {
+                font-size: 0.7rem;
+            }
+            .modal-content {
+                width: 90%;
+                padding: 10px;
+            }
+        }
+
+    </style>
+</head>
+<body class="bg-gray-100 min-h-screen flex items-center justify-center">
+    <div class="bg-white p-6 rounded-lg shadow-lg w-full max-w-9xl">
+
+        <h2 class="text-2xl font-bold text-center text-blue-900 mb-6">Aprobación de Objetivos</h2>
+        <div id="loader">Cargando datos...</div>
+        <div id="errorContainer" style="display:none;">
+            <p id="errorMessage" class="text-red-500"></p>
+        </div>
+        <div class="flex justify-center mb-4">
+            <button id="agregarObjetivoBtn" class="bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-4 rounded">Agregar Nuevo Objetivo</button>
+        </div>
+        <div id="objetivosTable" class="mb-6"></div>
+        <div class="flex justify-center">
+            <button id="guardarCambiosBtn" class="bg-green-500 hover:bg-green-600 text-white font-bold py-2 px-4 rounded">Guardar Cambios</button>
+        </div>
+        <div id="spinner">Guardando datos...</div>
+    </div>
+
+    <!-- Modal para agregar un nuevo objetivo -->
+    <div id="modalNuevoObjetivo" class="modal">
+        <div class="modal-content">
+            <span class="close" id="cerrarModal">&times;</span>
+            <h3 class="text-xl font-bold mb-4">Agregar Nuevo Objetivo</h3>
+            <div class="mb-4">
+                <label for="usuario" class="block text-gray-700 font-bold mb-2">Usuario (DNI o Nombre):</label>
+                <select id="usuario" class="select2 shadow appearance-none border rounded w-full py-2 px-3 text-gray-700"></select>
+            </div>
+            <div class="mb-4">
+                <label for="descripcion" class="block text-gray-700 font-bold mb-2">Descripción:</label>
+                <input type="text" id="descripcion" class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700">
+            </div>
+            <div class="flex justify-end">
+                <button id="guardarNuevoObjetivo" class="bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-4 rounded">Guardar Objetivo</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+let table;
+let usuarios = [];
+
+// Función para convertir una fecha a formato "DD/MM/YYYY"
+function formatearFecha(fecha) {
+    if (typeof fecha === "string") {
+        let partes = fecha.split("/");
+        if (partes.length === 3) {
+            let dia = parseInt(partes[0], 10);
+            let mes = parseInt(partes[1], 10) - 1;
+            let anio = parseInt(partes[2], 10);
+            fecha = new Date(anio, mes, dia);
+        }
+    }
+    if (fecha instanceof Date && !isNaN(fecha)) {
+        let day = String(fecha.getDate()).padStart(2, '0');
+        let month = String(fecha.getMonth() + 1).padStart(2, '0');
+        let year = fecha.getFullYear();
+        return `${day}/${month}/${year}`;
+    } else {
+        return fecha || "Invalid Date";
+    }
+}
+
+// Función para generar un idObjetivo único
+function generarIdObjetivo() {
+    return Date.now().toString();
+}
+
+// Cargar los usuarios desde la hoja de cálculo
+function cargarUsuarios() {
+    google.script.run.withSuccessHandler(function(data) {
+        usuarios = data;
+        const select = document.getElementById('usuario');
+        select.innerHTML = '';
+        data.forEach(function(usuario) {
+            const option = document.createElement('option');
+            option.value = usuario.dni;  
+            option.text = `${usuario.dni} - ${usuario.nombre}`;
+            select.appendChild(option);
+        });
+        $('.select2').select2();
+    }).cargarUsuariosDesdeSheet();
+}
+
+// Cargar los objetivos desde la hoja de cálculo
+function cargarObjetivos() {
+    document.getElementById("loader").style.display = "block";
+    google.script.run.withSuccessHandler(function(data) {
+        document.getElementById("loader").style.display = "none";
+        crearTablaObjetivos(JSON.parse(data));
+    }).cargarObjetivosDesdeSheet();
+}
+
+// Crear tabla Tabulator con los datos de los objetivos
+function crearTablaObjetivos(objetivos) {
+    table = new Tabulator("#objetivosTable", {
+        data: objetivos,
+        layout: "fitDataFill",
+        pagination: "local",
+        paginationSize: 10,
+        columns: [
+            { title: "Fecha", field: "fecha", widthGrow: 1, editor: "input", headerFilter: "input", mutatorEdit: formatearFecha },
+            { title: "ID Objetivo", field: "idObjetivo", widthGrow: 1, headerFilter: "input" },
+            { title: "Área", field: "areaUsuario", widthGrow: 1, headerFilter: "input" },
+            { title: "DNI", field: "idUsuario", widthGrow: 1, headerFilter: "input" },
+            { title: "Nombre Usuario", field: "nombreUsuario", widthGrow: 2, headerFilter: "input" },
+            { title: "Descripción", field: "descripcion", editor: "input", widthGrow: 3, headerFilter: "input" },
+            {
+                title: "Aprobado", 
+                field: "aprobado", 
+                editor: "select", 
+                editorParams: {
+                    values: ["Pendiente", "Estrategico", "Funciones", "Operacional"]
+                }, 
+                formatter: function (cell) {
+                    let value = cell.getValue();
+                    let color = '';
+                    switch (value) {
+                        case "Estrategico":
+                            color = "blue";
+                            break;
+                        case "Operacional":
+                            color = "orange";
+                            break;
+                        case "Funciones":
+                            color = "purple";
+                            break;
+                        case "Pendiente":
+                            color = "yellow";
+                            break;
+                    }
+                    return `<span class="label ${color}">${value}</span>`;
+                }, 
+                headerFilter: "select"
+            },
+            {
+                title: "Status", 
+                field: "status", 
+                editor: "select", 
+                editorParams: {
+                    values: ["Completado", "No Completado", "StandBy", "No Aplica"]
+                }, 
+                formatter: function (cell) {
+                    let value = cell.getValue();
+                    let color = '';
+                    switch (value) {
+                        case "Completado":
+                            color = "green";
+                            break;
+                        case "No Completado":
+                            color = "red";
+                            break;
+                        case "StandBy":
+                            color = "orange";
+                            break;
+                        case "No Aplica":
+                            color = "purple";
+                            break;
+                    }
+                    return `<span class="label ${color}">${value}</span>`;
+                }, 
+                headerFilter: "select"
+            },
+            { title: "Evidencia", field: "evidencia", editor: "input", widthGrow: 2, headerFilter: "input" },
+            { title: "Cargo Usuario", field: "cargoUsuario", widthGrow: 2, headerFilter: "input" },
+            { title: "Fecha Actualizada", field: "fechaActualizada", widthGrow: 2, headerFilter: "input", mutatorEdit: formatearFecha }
+        ]
+    });
+}
+
+// Guardar un nuevo objetivo
+document.getElementById("guardarNuevoObjetivo").addEventListener("click", function() {
+    const usuarioDNI = document.getElementById("usuario").value;
+    const descripcion = document.getElementById("descripcion").value;
+
+    if (!usuarioDNI || descripcion.length < 5) {
+        mostrarError("Por favor complete todos los campos y asegúrese de que la descripción tenga al menos 5 caracteres.");
+        return;
+    }
+
+    const usuario = usuarios.find(u => u.dni && u.dni.toString().trim() === usuarioDNI.trim());
+    if (!usuario) {
+        mostrarError("El usuario seleccionado no es válido.");
+        return;
+    }
+
+    const nuevoObjetivo = {
+        fecha: formatearFecha(new Date()),
+        idObjetivo: generarIdObjetivo(),
+        areaUsuario: usuario.area,
+        idUsuario: usuarioDNI.trim(),
+        nombreUsuario: usuario.nombre,
+        descripcion: descripcion,
+        aprobado: "Pendiente",
+        status: "No Completado",
+        evidencia: formatearFecha(new Date()),
+        cargoUsuario: usuario.cargo,
+        fechaActualizada: formatearFecha(new Date())
+    };
+
+    document.getElementById("spinner").style.display = "block";
+
+    google.script.run.withSuccessHandler(function() {
+        table.addRow(nuevoObjetivo);
+        document.getElementById("usuario").value = '';
+        document.getElementById("descripcion").value = '';
+        document.getElementById("modalNuevoObjetivo").style.display = "none";
+        document.getElementById("spinner").style.display = "none";
+        alert("Objetivo guardado con éxito.");
+    }).withFailureHandler(function(error) {
+        document.getElementById("spinner").style.display = "none";
+        mostrarError("Error al guardar el objetivo. Intente nuevamente.");
+    }).guardarNuevoObjetivoEnSheet(nuevoObjetivo);
+});
+
+// Guardar solo las filas modificadas
+document.getElementById("guardarCambiosBtn").addEventListener("click", function() {
+    if (!table) {
+        alert("La tabla no está disponible.");
+        return;
+    }
+
+    const editedRows = table.getRows().filter(row => {
+        const rowData = row.getData();
+        return row.getCell("descripcion").getValue() !== row.getCell("descripcion")._cell.initialValue ||
+               row.getCell("aprobado").getValue() !== row.getCell("aprobado")._cell.initialValue ||
+               row.getCell("status").getValue() !== row.getCell("status")._cell.initialValue;
+    });
+
+    if (editedRows.length === 0) {
+        alert("No hay cambios para guardar.");
+        return;
+    }
+
+    const data = editedRows.map(row => {
+        let rowData = row.getData();
+        rowData.fecha = formatearFecha(rowData.fecha);
+        rowData.fechaActualizada = formatearFecha(new Date());
+        return rowData;
+    });
+
+    document.getElementById("spinner").style.display = "block";
+
+    google.script.run.withSuccessHandler(function() {
+        document.getElementById("spinner").style.display = "none";
+        alert("Cambios guardados con éxito.");
+    }).withFailureHandler(function(error) {
+        document.getElementById("spinner").style.display = "none";
+        mostrarError("Error al guardar los cambios. Intente nuevamente.");
+    }).actualizarObjetivosEnSheet(data);
+});
+
+// Función para mostrar errores
+function mostrarError(mensaje) {
+    document.getElementById("errorMessage").textContent = mensaje;
+    document.getElementById("errorContainer").style.display = "block";
+}
+
+// Mostrar el modal para agregar un nuevo objetivo
+document.getElementById("agregarObjetivoBtn").addEventListener("click", function() {
+    document.getElementById("modalNuevoObjetivo").classList.add("show");
+});
+
+// Cerrar el modal
+document.getElementById("cerrarModal").addEventListener("click", function() {
+    document.getElementById("modalNuevoObjetivo").classList.remove("show");
+});
+
+// Cargar usuarios y objetivos al iniciar
+cargarUsuarios();
+cargarObjetivos();
+
+    </script>
+</body>
+</html>
